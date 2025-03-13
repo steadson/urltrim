@@ -1,103 +1,483 @@
-import Image from "next/image";
+
+
+"use client";
+
+import { FormEvent, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import Link from "next/link";
+import {
+  ChevronDown,
+  BarChart2,
+  Globe,
+  Layers,
+  Share2,
+  Wand,
+  Copy,
+  QrCode,
+  ExternalLink
+} from "lucide-react";
+import { Righteous } from "next/font/google";
+import { Poppins } from "next/font/google";
+
+const righteousFont = Righteous({
+  weight: ["400"],
+  subsets: ["latin"]
+});
+
+const PoppinsFont = Poppins({
+  subsets: ["latin"],
+  weight: ["400"]
+});
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [url, setUrl] = useState("");
+  const [customId, setCustomId] = useState("");
+  const [expiresIn, setExpiresIn] = useState<number | undefined>();
+  const [shortenedUrl, setShortenedUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [showCustomOptions, setShowCustomOptions] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [showQrCode, setShowQrCode] = useState(false);
+  const [qrCodeSize, setQrCodeSize] = useState("svg"); // Options: "svg", "png", "png1200"
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  // Add a function to handle QR code button click
+  const handleQrCodeClick = (size = "svg") => {
+    setQrCodeSize(size);
+    setShowQrCode(true);
+  };
+
+  // Add this function to handle downloads
+  const downloadQrCode = () => {
+    const svg = document.querySelector(".qr-code-container svg");
+    if (!svg) return;
+
+    if (qrCodeSize === "svg") {
+      // Download as SVG
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], {
+        type: "image/svg+xml;charset=utf-8"
+      });
+      const svgUrl = URL.createObjectURL(svgBlob);
+
+      const downloadLink = document.createElement("a");
+      downloadLink.href = svgUrl;
+      downloadLink.download = "qrcode.svg";
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      URL.revokeObjectURL(svgUrl);
+    } else {
+      // For PNG, we need to convert SVG to canvas first
+      const canvas = document.createElement("canvas");
+      const width = qrCodeSize === "png1200" ? 1200 : 300;
+      canvas.width = width;
+      canvas.height = width;
+
+      const ctx = canvas.getContext("2d");
+       if (!ctx) {
+         console.error("Could not get canvas context");
+         return;
+       }
+      const img = new Image();
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], {
+        type: "image/svg+xml;charset=utf-8"
+      });
+      const svgUrl = URL.createObjectURL(svgBlob);
+
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, width, width);
+        URL.revokeObjectURL(svgUrl);
+
+        const pngUrl = canvas.toDataURL("image/png");
+        const downloadLink = document.createElement("a");
+        downloadLink.href = pngUrl;
+        downloadLink.download = `qrcode${qrCodeSize === "png1200"
+          ? "-1200"
+          : ""}.png`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+      };
+
+      img.src = svgUrl;
+    }
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/shorten", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          url,
+          customId: customId || undefined,
+          expiresIn: expiresIn || undefined
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to shorten URL");
+      }
+
+      setShortenedUrl(data.shortUrl);
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "An unknown error occurred"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!shortenedUrl) return;
+
+    try {
+      // Try the Clipboard API first
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shortenedUrl);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      } else {
+        // Fallback for mobile browsers that don't support Clipboard API
+        const textArea = document.createElement("textarea");
+        textArea.value = shortenedUrl;
+        textArea.style.position = "fixed"; // Make it invisible
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        const successful = document.execCommand("copy");
+        document.body.removeChild(textArea);
+
+        if (successful) {
+          setCopySuccess(true);
+          setTimeout(() => setCopySuccess(false), 2000);
+        } else {
+          throw new Error("Copy failed");
+        }
+      }
+    } catch (err) {
+      console.error("Copy failed:", err);
+      // Inform user that copy failed
+      setError("Copy failed. Please select and copy the URL manually.");
+    }
+  };
+
+  const handleShare = async () => {
+    if (!shortenedUrl) return;
+
+    // Check if Web Share API is available
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Shortened URL",
+          text: "Check out this shortened URL!",
+          url: shortenedUrl
+        });
+        // Optionally show success message
+        // setShareSuccess(true);
+        // setTimeout(() => setShareSuccess(false), 2000);
+      } catch (error) {
+        console.error("Error sharing:", error);
+        // Only show error if it's not an AbortError (user canceled)
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setError("Couldn't share the URL. Please try copying it instead.");
+        }
+      }
+    } else {
+      // Fallback for devices/browsers that don't support Web Share API
+      // You could either show an error message or automatically fall back to copy
+      handleCopy();
+      setError(
+        "Direct sharing not supported on this device. URL copied to clipboard instead."
+      );
+    }
+  };
+
+  // QR Code Modal component
+  const QrCodeModal = () => {
+    if (!showQrCode) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-bold">QR Code for your URL</h3>
+            <button
+              onClick={() => setShowQrCode(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="flex justify-center mb-4 qr-code-container">
+            <QRCodeSVG
+              value={shortenedUrl || ""}
+              size={250}
+              level={"H"}
+              includeMargin={true}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <button
+              onClick={() => handleQrCodeClick("svg")}
+              className={`p-2 rounded ${qrCodeSize === "svg"
+                ? "bg-green-600 text-white"
+                : "bg-gray-200"}`}
+            >
+              SVG
+            </button>
+            <button
+              onClick={() => handleQrCodeClick("png")}
+              className={`p-2 rounded ${qrCodeSize === "png"
+                ? "bg-green-600 text-white"
+                : "bg-gray-200"}`}
+            >
+              PNG
+            </button>
+            <button
+              onClick={() => handleQrCodeClick("png1200")}
+              className={`p-2 rounded ${qrCodeSize === "png1200"
+                ? "bg-green-600 text-white"
+                : "bg-gray-200"}`}
+            >
+              PNG 1200
+            </button>
+          </div>
+
+          <div className="flex justify-between">
+            <button
+              onClick={downloadQrCode}
+              className="bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700"
+            >
+              Download
+            </button>
+            <button
+              onClick={() => setShowQrCode(false)}
+              className="bg-gray-300 py-2 px-4 rounded hover:bg-gray-400"
+            >
+              Close
+            </button>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+      </div>
+    );
+  };
+
+  return <div className="min-h-screen text-black background">
+      <nav className="bg-black p-4 fixed top-0 left-0 w-full z-50 shadow-md">
+        <div className="container mx-auto flex justify-between items-center">
+          <h1 className="text-3xl font-bold tracking-wide text-white emblema-one-regular">
+            URLTRIM
+          </h1>
+
+          <div className="hidden md:flex space-x-6 text-white">
+            <button className="hover:text-xl transition doto font-bold">
+              My URLs
+            </button>
+            <button className="hover:text-xl transition doto font-bold">
+              Plans
+            </button>
+            <button className="hover:text-xl transition doto font-bold">
+              Blog
+            </button>
+            <div className="relative group">
+              <button className="hover:text-lg transition flex items-center doto font-bold">
+                Features <ChevronDown className="h-4 w-4 ml-1" />
+              </button>
+            </div>
+          </div>
+
+          <div className="rock-salt-regular flex items-center text-white space-x-2">
+            <button className="bg-black px-3 py-1 rounded hover:bg-white hover:text-black transition">
+              Login
+            </button>
+            <button className="rock-salt-regular bg-black px-3 py-1 rounded hover:bg-white hover:text-black transition">
+              Sign Up
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="container pt-24 mx-auto px-4 py-10 flex flex-col md:flex-row gap-8">
+        {/* Left Column - URL Shortener Form */}
+
+        <div className="md:w-1/3 montserrat">
+          <div className="bg-black text-white rounded-lg shadow-lg p-6 ">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="url" className="text-lg font-medium flex items-center gap-2">
+                  <span className="text-white">Shorten a long URL</span>
+                </label>
+                <input type="url" id="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="Enter long link here" className="w-full p-3 border border-gray-300 rounded-md mt-2 text-lg" required />
+              </div>
+
+              <div>
+                <button type="button" onClick={() => setShowCustomOptions(!showCustomOptions)} className="flex items-center gap-2 text-white font-medium">
+                  <span className="text-lg text-white">
+                    <Wand />
+                  </span> Customize your link
+                  <ChevronDown className={`h-4 w-4 text-white transition-transform ${showCustomOptions ? "rotate-180" : ""}`} />
+                </button>
+              </div>
+
+              {showCustomOptions && <div className="space-y-4 pt-2 pb-4 border-b border-gray-200">
+                  <div className="flex flex-col md:flex-row gap-2 ">
+                    <div className="md:w-1/2">
+                      <div className="w-full p-3 outline-none rounded-md md:rounded-l-md bg-white text-black">
+                        <option value="shorturl.com" className="bg-white text-black font-extrabold">
+                          shorturl.com/
+                        </option>
+                      </div>
+                    </div>
+                    <div className="md:w-1/2">
+                      <input type="text" id="customId" value={customId} onChange={e => setCustomId(e.target.value)} placeholder="Enter alias" className="w-full p-3 border border-white text-white rounded-md md:rounded-l-md" />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="expiresIn" className="block text-sm font-medium text-white mb-1">
+                      Expires In (days)
+                    </label>
+                    <input type="number" id="expiresIn" value={expiresIn || ""} onChange={e => setExpiresIn(e.target.value ? parseInt(e.target.value) : undefined)} placeholder="30" min="1" className="w-full p-3 border border-gray-300 rounded-md" />
+                  </div>
+                </div>}
+
+              <button type="submit" disabled={loading} className="w-full bg-white hover:bg-black hover:text-white cursor-pointer text-black font-bold p-3 rounded-md transition text-lg flex items-center justify-center rock-salt-regular">
+                {loading ? <div className="flex items-center gap-2">
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-0" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-100" fill="black" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Shortening...
+                    </div> : "Shorten URL"}
+              </button>
+            </form>
+
+            {error && <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md">
+                {error}
+              </div>}
+
+            {shortenedUrl && <div className="mt-6 p-4 bg-white text-black rounded-md">
+                <h3 className="text-lg font-medium mb-2">
+                  URL Shortened Successfully!
+                </h3>
+                <div className="flex items-center mb-4">
+                  <input type="text" value={shortenedUrl} readOnly className="flex-1 p-3 border border-black rounded-l-md bg-white" />
+                </div>
+
+                {/* New action buttons similar to the image */}
+                <div className="grid grid-cols-4 gap-2">
+                  <button onClick={handleShare} className="flex flex-col items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-md transition" title="Share">
+                    <Share2 className="h-6 w-6 text-black mb-1" />
+                    <span className="text-xs">Share</span>
+                  </button>
+
+                  <button onClick={handleCopy} className="flex flex-col items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-md transition" title="Copy to clipboard">
+                    <Copy className="h-6 w-6 text-black mb-1" />
+                    <span className="text-xs">
+                      {copySuccess ? "Copied!" : "Copy"}
+                    </span>
+                  </button>
+
+                  <button onClick={() => handleQrCodeClick()} className="flex flex-col items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-md transition" title="Get QR Code">
+                    <QrCode className="h-6 w-6 text-black mb-1" />
+                    <span className="text-xs">QR Code</span>
+                  </button>
+
+                  <a href={shortenedUrl} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center p-2 bg-gray-100 hover:bg-gray-200 rounded-md transition" title="Visit URL">
+                    <ExternalLink className="h-6 w-6 text-black mb-1" />
+                    <span className="text-xs">Visit</span>
+                  </a>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-4">
+                  <Link href={`/stats/${shortenedUrl
+                      .split("/")
+                      .pop()}`} className="text-black hover:text-cyan-800 flex items-center gap-1">
+                    <BarChart2 className="h-4 w-4 text-black" /> View Statistics
+                  </Link>
+                  <Link href={`/referral/${shortenedUrl
+                      .split("/")
+                      .pop()}`} className="text-black underline hover:text-cyan-800 flex items-center gap-1">
+                    <Share2 className="h-4 w-4" color="black" /> Create Referral Links
+                  </Link>
+                </div>
+
+                <div className="mt-4">
+                  <button className="bg-black hover:bg-white text-white hover:text-black rock-salt-regular font-medium py-2 px-4 rounded w-full" onClick={() => {
+                      setUrl("");
+                      setCustomId("");
+                      setExpiresIn(undefined);
+                      setShortenedUrl(null);
+                      setError(null);
+                      setShowCustomOptions(false);
+                    }}>
+                    Shorten another
+                  </button>
+                </div>
+              </div>}
+          </div>
+
+          {/* Render QR Code Modal */}
+          {shortenedUrl && <QrCodeModal />}
+        </div>
+
+        {/* Right Column - Features Info */}
+        <div className="md:w-1/2">
+          <div className="text-black">
+            <h2 className="text-3xl font-bold mb-4">
+              The Original URL Shortener
+            </h2>
+            <p className="text-xl mb-6">Create shorter URLs with ShortURL.</p>
+
+            <p className="mb-6">
+              Want more out of your link shortener? Track link analytics, use
+              branded domains for fully custom links, and manage your links
+              with our paid plans.
+            </p>
+
+            <button className="bg-white text-cyan-800 px-6 py-3 rounded font-medium hover:bg-gray-100 transition mb-8">
+              Upgrade Now
+            </button>
+
+            <h3 className="text-xl font-bold mb-4">
+              ShortURL plans include:
+            </h3>
+
+            <ul className="space-y-4">
+              <li className="flex items-center gap-3">
+                <BarChart2 className="h-5 w-5 text-cyan-300" />
+                <span>Detailed Link Analytics</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Globe className="h-5 w-5 text-cyan-300" />
+                <span>Fully Branded Domains</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Layers className="h-5 w-5 text-cyan-300" />
+                <span>Bulk Short URLs</span>
+              </li>
+              <li className="flex items-center gap-3">
+                <Share2 className="h-5 w-5 text-cyan-300" />
+                <span>Link Management Features</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>;
 }
