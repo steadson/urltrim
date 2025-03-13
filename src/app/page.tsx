@@ -437,21 +437,23 @@ export default function Home() {
         </div>
 
         {/* Right Column - Features Info */}
-        <div className="md:w-1/2">
+        <div className="md:w-1/3 montserrat">
           <div className="text-black">
             <h2 className="text-3xl font-bold mb-4">
-              The Original URL Shortener
+              Beyond URL Shortening: Track, Analyze, Convert
             </h2>
-            <p className="text-xl mb-6">Create shorter URLs with ShortURL.</p>
-
-            <p className="mb-6">
-              Want more out of your link shortener? Track link analytics, use
-              branded domains for fully custom links, and manage your links
-              with our paid plans.
+            <p className="text-lg mb-6 font-semibold">
+              {" "}"Create cool URLs with URLTRIM".
             </p>
 
-            <button className="bg-white text-cyan-800 px-6 py-3 rounded font-medium hover:bg-gray-100 transition mb-8">
-              Upgrade Now
+            <p className="mb-6 font-medium text-base/6">
+              Create compact links that do more than redirect. Get detailed
+              click analytics, monitor referral performance, and boost your
+              marketing campaigns with our powerful link management platform.
+            </p>
+
+            <button className="bg-black text-white hover:bg-white hover:text-black font-stretch-extra-expanded w-full italic px-6 py-3 rounded font-medium  transition mb-8">
+              Create free Account
             </button>
 
             <h3 className="text-xl font-bold mb-4">
