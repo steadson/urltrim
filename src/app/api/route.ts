@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: { shortId: string } }
 ) {
   await dbConnect();
-  const shortId = await params.shortId;
+  const shortId =  params.shortId;
 
   try {
     const url = await Url.findOne({ shortId });

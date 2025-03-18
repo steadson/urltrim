@@ -8,7 +8,7 @@ export interface IUrl extends Document {
   createdAt: Date;
   updatedAt: Date;
   expireAt?: Date;
-  userId?: string;
+  userId?: mongoose.Types.ObjectId;  // Changed from string to ObjectId
 }
 
 // URL Schema
@@ -17,7 +17,10 @@ const UrlSchema = new Schema<IUrl>(
     originalUrl: { type: String, required: true },
     shortId: { type: String, required: true, unique: true },
     expireAt: { type: Date, default: null },
-    userId: { type: String, default: null },
+    userId: { 
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },  // Fixed syntax here
   },
   { timestamps: true }
 );

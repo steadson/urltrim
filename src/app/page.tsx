@@ -1,10 +1,9 @@
-
-
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ChevronDown,
   BarChart2,
@@ -29,6 +28,125 @@ const PoppinsFont = Poppins({
   weight: ["400"]
 });
 
+// Add auth state management
+const useAuth = () => {
+  // This is a mock implementation - replace with your actual auth logic
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userId, setUserId] = useState(null);
+
+  useEffect(() => {
+    // Check if user is logged in by looking for auth token in localStorage, cookies, etc.
+    // This is just a placeholder - implement your actual auth check here
+    const checkAuth = () => {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        setIsLoggedIn(true);
+        // Get user ID from token or separate storage
+        setUserId(localStorage.getItem('userId'));
+      }
+    };
+    
+    checkAuth();
+    
+    // Listen for auth changes (optional)
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'authToken') {
+        checkAuth();
+      }
+    });
+    
+    return () => {
+      window.removeEventListener('storage', checkAuth);
+    };
+  }, []);
+
+  return { isLoggedIn, userId };
+};
+
+// Function to save/retrieve URLs from localStorage
+const useUrlStorage = () => {
+  // Save a shortened URL to localStorage
+  const saveUrlToLocalStorage = (urlData) => {
+    try {
+      // Get existing saved URLs or initialize empty array
+      const savedUrls = JSON.parse(localStorage.getItem('savedUrls') || '[]');
+      
+      // Add timestamp to track when URL was created
+      const urlWithTimestamp = {
+        ...urlData,
+        savedAt: new Date().toISOString(),
+      };
+      
+      // Add new URL to array
+      savedUrls.push(urlWithTimestamp);
+      
+      // Save back to localStorage
+      localStorage.setItem('savedUrls', JSON.stringify(savedUrls));
+      
+      return true;
+    } catch (error) {
+      console.error('Error saving URL to localStorage:', error);
+      return false;
+    }
+  };
+
+  // Get all saved URLs from localStorage
+  const getSavedUrls = () => {
+    try {
+      return JSON.parse(localStorage.getItem('savedUrls') || '[]');
+    } catch (error) {
+      console.error('Error retrieving URLs from localStorage:', error);
+      return [];
+    }
+  };
+
+  // Clear all or specific saved URLs
+  const clearSavedUrls = (urlId = null) => {
+    if (urlId) {
+      // Remove specific URL
+      const savedUrls = getSavedUrls();
+      const filteredUrls = savedUrls.filter(url => url.shortId !== urlId);
+      localStorage.setItem('savedUrls', JSON.stringify(filteredUrls));
+    } else {
+      // Clear all saved URLs
+      localStorage.removeItem('savedUrls');
+    }
+  };
+
+  return { saveUrlToLocalStorage, getSavedUrls, clearSavedUrls };
+};
+
+// Function to sync localStorage URLs with database
+const syncUrlsWithDatabase = async (userId) => {
+  const { getSavedUrls, clearSavedUrls } = useUrlStorage();
+  const savedUrls = getSavedUrls();
+  
+  if (savedUrls.length === 0) return;
+  
+  try {
+    // Send saved URLs to your API endpoint
+    const response = await fetch("/api/sync-urls", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        userId,
+        urls: savedUrls
+      })
+    });
+
+    if (response.ok) {
+      // If successfully synced, clear local storage
+      clearSavedUrls();
+    } else {
+      console.error("Failed to sync URLs with database");
+    }
+  } catch (error) {
+    console.error("Error syncing URLs with database:", error);
+  }
+};
+
 export default function Home() {
   const [url, setUrl] = useState("");
   const [customId, setCustomId] = useState("");
@@ -40,11 +158,26 @@ export default function Home() {
   const [copySuccess, setCopySuccess] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
   const [qrCodeSize, setQrCodeSize] = useState("svg"); // Options: "svg", "png", "png1200"
+  
+  const router = useRouter();
+  const { isLoggedIn, userId } = useAuth();
+  const { saveUrlToLocalStorage } = useUrlStorage();
+
+  // Check for saved URLs when user logs in
+  useEffect(() => {
+    if (isLoggedIn && userId) {
+      syncUrlsWithDatabase(userId);
+    }
+  }, [isLoggedIn, userId]);
 
   // Add a function to handle QR code button click
   const handleQrCodeClick = (size = "svg") => {
     setQrCodeSize(size);
     setShowQrCode(true);
+  };
+  
+  const navigateTo = (path: string) => {
+    router.push(path);
   };
 
   // Add this function to handle downloads
@@ -119,7 +252,8 @@ export default function Home() {
         body: JSON.stringify({
           url,
           customId: customId || undefined,
-          expiresIn: expiresIn || undefined
+          expiresIn: expiresIn || undefined,
+          userId: isLoggedIn ? userId : undefined // Only include userId if logged in
         })
       });
 
@@ -130,6 +264,17 @@ export default function Home() {
       }
 
       setShortenedUrl(data.shortUrl);
+      
+      // If user is not logged in, save URL to localStorage
+      if (!isLoggedIn) {
+        saveUrlToLocalStorage({
+          originalUrl: url,
+          shortUrl: data.shortUrl,
+          shortId: data.shortUrl.split('/').pop(),
+          customId: customId || undefined,
+          expiresIn: expiresIn || undefined
+        });
+      }
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "An unknown error occurred"
@@ -278,6 +423,32 @@ export default function Home() {
     );
   };
 
+  // Display indicator if there are saved URLs in localStorage
+  const SavedUrlsIndicator = () => {
+    const [hasSavedUrls, setHasSavedUrls] = useState(false);
+    
+    useEffect(() => {
+      const savedUrls = JSON.parse(localStorage.getItem('savedUrls') || '[]');
+      setHasSavedUrls(savedUrls.length > 0);
+    }, [shortenedUrl]); // Re-check when a new URL is shortened
+    
+    if (!hasSavedUrls || isLoggedIn) return null;
+    
+    return (
+      <div className="mt-4 p-3 bg-yellow-100 text-yellow-800 rounded-md">
+        <p className="text-sm">
+          <span className="font-bold">Note:</span> You have shortened URLs saved locally. 
+          <button 
+            onClick={() => navigateTo('login')} 
+            className="text-blue-600 hover:underline ml-1"
+          >
+            Log in
+          </button> to save them to your account.
+        </p>
+      </div>
+    );
+  };
+
   return <div className="min-h-screen text-black background">
       <nav className="bg-black p-4 fixed top-0 left-0 w-full z-50 shadow-md">
         <div className="container mx-auto flex justify-between items-center">
@@ -286,29 +457,42 @@ export default function Home() {
           </h1>
 
           <div className="hidden md:flex space-x-6 text-white">
-            <button className="hover:text-xl transition doto font-bold">
+            <button className="px-3 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold">
               My URLs
             </button>
-            <button className="hover:text-xl transition doto font-bold">
+            <button className="px-3 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold">
               Plans
             </button>
-            <button className="hover:text-xl transition doto font-bold">
+            <button className="px-3 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold">
               Blog
             </button>
             <div className="relative group">
-              <button className="hover:text-lg transition flex items-center doto font-bold">
+              <button className="px-3 cursor-pointer py-1 rounded hover:bg-white hover:text-black transition flex items-center doto font-bold">
                 Features <ChevronDown className="h-4 w-4 ml-1" />
               </button>
             </div>
           </div>
 
           <div className="rock-salt-regular flex items-center text-white space-x-2">
-            <button className="bg-black px-3 py-1 rounded hover:bg-white hover:text-black transition">
-              Login
-            </button>
-            <button className="rock-salt-regular bg-black px-3 py-1 rounded hover:bg-white hover:text-black transition">
-              Sign Up
-            </button>
+            {!isLoggedIn ? (
+              <>
+                <button onClick={() => navigateTo("login")} className="cursor-pointer bg-black px-3 py-1 rounded hover:bg-white hover:text-black transition">
+                  Login
+                </button>
+                <button onClick={() => navigateTo("register")} className="cursor-pointer rock-salt-regular bg-black px-3 py-1 rounded hover:bg-white hover:text-black transition">
+                  Sign Up
+                </button>
+              </>
+            ) : (
+              <button onClick={() => {
+                // Implementation of logout function
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userId');
+                window.location.reload();
+              }} className="cursor-pointer bg-black px-3 py-1 rounded hover:bg-white hover:text-black transition">
+                Logout
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -370,6 +554,9 @@ export default function Home() {
             {error && <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md">
                 {error}
               </div>}
+
+            {/* Saved URLs indicator */}
+            <SavedUrlsIndicator />
 
             {shortenedUrl && <div className="mt-6 p-4 bg-white text-black rounded-md">
                 <h3 className="text-lg font-medium mb-2">
