@@ -42,22 +42,26 @@ async function verifyToken(token: string) {
 // Helper function to get current user in Route Handlers
 export async function getCurrentUser(request: Request) {
   try {
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+        const authHeader = request.headers.get("authorization");
+        if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
 
     const token = authHeader.split(" ")[1];
-    const decoded = await verifyToken(token);
-    if (!decoded || !decoded.id) return null;
-    const userId = decoded.id
-;console.log("user gotten>>>",userId)
-    // Connect to database
-    await dbConnect();
+    console.log("token is ..", token)
+        const decoded = await verifyToken(token);
+        if (!decoded || !decoded.id) return null;
+        // Convert the id to a string to ensure it's a valid ObjectId
+        const userId = decoded.id
+        console.log("Decoded user ID:", userId);
+       
+        
+        // Connect to database
+        await dbConnect();
 
-    // Get user data
-    const user = await User.findById(userId).select("-password");
-    console.log("current user id is >>", user._id, "current user name is >>", user.name)
-    return user;
-  } catch (error) {
+        // Get user data
+        const user = await User.findById(userId).select("-password");
+        console.log("current user id is >>", user?._id, "current user name is >>", user?.name);
+        return user;
+      } catch (error) {
     console.error("Get current user error:", error);
     return null;
   }

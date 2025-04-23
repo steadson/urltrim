@@ -1,5 +1,5 @@
 // File: /app/api/urls/user/route.js (or route.ts if using TypeScript)
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import dbConnect from "@/libs/db";
 import {getCurrentUser} from "@/app/middleware/auths"
 import {Url} from "@/app/models/Url"; // Make sure to import your URL model

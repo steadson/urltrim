@@ -2,7 +2,10 @@
 
 import { FormEvent, useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import  {ReferralAuthModal} from "@/app/component/ui/ReferralAuthModal"
 import Link from "next/link";
+//import { useAuth } from "@/app/context/authContext";
+
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -12,6 +15,7 @@ import {
   Share2,
   Wand,
   Copy,
+  Menu, X,
   QrCode,
   ExternalLink
 } from "lucide-react";
@@ -28,8 +32,9 @@ const PoppinsFont = Poppins({
   weight: ["400"]
 });
 
-// Add auth state management
-const useAuth = () => {
+//Add auth state management
+
+ const useAuth = () => {
   // This is a mock implementation - replace with your actual auth logic
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userId, setUserId] = useState(null);
@@ -42,7 +47,10 @@ const useAuth = () => {
       if (token) {
         setIsLoggedIn(true);
         // Get user ID from token or separate storage
-        setUserId(localStorage.getItem('userId'));
+const userId = localStorage.getItem('userId');
+if (userId) {
+setUserId(userId as any);
+}
       }
     };
     
@@ -63,10 +71,19 @@ const useAuth = () => {
   return { isLoggedIn, userId };
 };
 
+
+
+
 // Function to save/retrieve URLs from localStorage
 const useUrlStorage = () => {
   // Save a shortened URL to localStorage
-  const saveUrlToLocalStorage = (urlData) => {
+  const saveUrlToLocalStorage = (urlData: {
+    originalUrl: string;
+    shortUrl: string;
+    shortId: string;
+    customId?: string;
+    expiresIn?: number;
+  }) => {
     try {
       // Get existing saved URLs or initialize empty array
       const savedUrls = JSON.parse(localStorage.getItem('savedUrls') || '[]');
@@ -105,7 +122,7 @@ const useUrlStorage = () => {
     if (urlId) {
       // Remove specific URL
       const savedUrls = getSavedUrls();
-      const filteredUrls = savedUrls.filter(url => url.shortId !== urlId);
+      const filteredUrls = savedUrls.filter((url: { shortId: string }) => url.shortId !== urlId);
       localStorage.setItem('savedUrls', JSON.stringify(filteredUrls));
     } else {
       // Clear all saved URLs
@@ -117,7 +134,7 @@ const useUrlStorage = () => {
 };
 
 // Function to sync localStorage URLs with database
-const syncUrlsWithDatabase = async (userId) => {
+const syncUrlsWithDatabase = async (userId: string | null) => {
   const { getSavedUrls, clearSavedUrls } = useUrlStorage();
   const savedUrls = getSavedUrls();
   
@@ -149,6 +166,7 @@ const syncUrlsWithDatabase = async (userId) => {
 
 export default function Home() {
   const [url, setUrl] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [customId, setCustomId] = useState("");
   const [expiresIn, setExpiresIn] = useState<number | undefined>();
   const [shortenedUrl, setShortenedUrl] = useState<string | null>(null);
@@ -158,7 +176,8 @@ export default function Home() {
   const [copySuccess, setCopySuccess] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
   const [qrCodeSize, setQrCodeSize] = useState("svg"); // Options: "svg", "png", "png1200"
-  
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const router = useRouter();
   const { isLoggedIn, userId } = useAuth();
   const { saveUrlToLocalStorage } = useUrlStorage();
@@ -179,9 +198,10 @@ export default function Home() {
   const navigateTo = (path: string) => {
     router.push(path);
   };
+ 
 
   // Add this function to handle downloads
-  const downloadQrCode = () => {
+const downloadQrCode = () => {
     const svg = document.querySelector(".qr-code-container svg");
     if (!svg) return;
 
@@ -452,34 +472,102 @@ export default function Home() {
   return <div className="min-h-screen text-black background">
       <nav className="bg-black p-4 fixed top-0 left-0 w-full z-50 shadow-md">
         <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-3xl font-bold tracking-wide text-white emblema-one-regular">
-            URLTRIM
-          </h1>
+           <div className="flex items-center">
+            {/* Mobile menu button */}
+            <button
+              className="md:hidden text-white mr-4"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+            
+            <h1 className="md:text-3xl text-xl font-bold tracking-wide text-white emblema-one-regular">
+              URLTRIM
+            </h1>
+          </div>
+          
+         
 
           <div className="hidden md:flex space-x-6 text-white">
-            <button className="px-3 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold">
+            <button className="px-2 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold">
               My URLs
             </button>
-            <button className="px-3 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold">
-              Plans
+            <button onClick={()=>setShowAuthModal(true)} className="px-2 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold">
+              Referral
             </button>
-            <button className="px-3 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold">
+            <button className="px-2 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold">
               Blog
             </button>
-            <div className="relative group">
+            {/* <div className="relative group">
               <button className="px-3 cursor-pointer py-1 rounded hover:bg-white hover:text-black transition flex items-center doto font-bold">
                 Features <ChevronDown className="h-4 w-4 ml-1" />
               </button>
+            </div> */}
+          </div>
+ <div
+            className={`md:hidden absolute top-full left-0 w-full bg-black transition-all duration-300 ease-in-out ${
+              mobileMenuOpen ? "block" : "hidden"
+            }`}
+          >
+            <div className="flex flex-col space-y-4 p-4">
+              <button className="px-2 py-1 cursor-pointer text-white rounded hover:bg-white hover:text-black transition doto font-bold">
+                My URLs
+              </button>
+              <button 
+                onClick={() => {
+                  setShowAuthModal(true);
+                  setMobileMenuOpen(false);
+                }} 
+                className="px-2 py-1 cursor-pointer text-white rounded hover:bg-white hover:text-black transition doto font-bold"
+              >
+                Referral
+              </button>
+              <button className="px-2 py-1 cursor-pointer text-white rounded hover:bg-white hover:text-black transition doto font-bold">
+                Blog
+              </button>
+              {/* Login/Signup or Logout buttons
+              {!isLoggedIn ? (
+                <>
+                  <button 
+                    onClick={() => {
+                      navigateTo("login");
+                      setMobileMenuOpen(false);
+                    }} 
+                    className="cursor-pointer text-white  bg-black px-1 py-1 rounded hover:bg-white hover:text-black transition"
+                  >
+                    Login
+                  </button>
+                  <button 
+                    onClick={() => {
+                      navigateTo("register");
+                      setMobileMenuOpen(false);
+                    }} 
+                    className="cursor-pointer text-white text-sm rock-salt-regular bg-black px-1 py-1 rounded hover:bg-white hover:text-black transition"
+                  >
+                    Sign Up
+                  </button>
+                </>
+              ) : (
+                <button 
+                  onClick={() => {
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('userId');
+                    window.location.reload();
+                  }} 
+                  className="cursor-pointer text-white bg-black px-3 py-1 rounded hover:bg-white hover:text-black transition"
+                >
+                  Logout
+                </button>
+              )} */}
             </div>
           </div>
-
-          <div className="rock-salt-regular flex items-center text-white space-x-2">
+          <div className="rock-salt-regular flex items-center text-white space-x-1">
             {!isLoggedIn ? (
               <>
-                <button onClick={() => navigateTo("login")} className="cursor-pointer bg-black px-3 py-1 rounded hover:bg-white hover:text-black transition">
+                <button onClick={() => navigateTo("login")} className="cursor-pointer text-sm bg-black px-1 py-1 rounded hover:bg-white hover:text-black transition">
                   Login
                 </button>
-                <button onClick={() => navigateTo("register")} className="cursor-pointer rock-salt-regular bg-black px-3 py-1 rounded hover:bg-white hover:text-black transition">
+                <button onClick={() => navigateTo("register")} className="cursor-pointer text-sm rock-salt-regular bg-black px-1 py-1 rounded hover:bg-white hover:text-black transition">
                   Sign Up
                 </button>
               </>
@@ -590,19 +678,22 @@ export default function Home() {
                     <span className="text-xs">Visit</span>
                   </a>
                 </div>
-
-                <div className="mt-4 flex flex-wrap gap-4">
+{isLoggedIn && <div className="mt-4 flex flex-wrap gap-4">
                   <Link href={`/stats/${shortenedUrl
                       .split("/")
                       .pop()}`} className="text-black hover:text-cyan-800 flex items-center gap-1">
                     <BarChart2 className="h-4 w-4 text-black" /> View Statistics
                   </Link>
-                  <Link href={`/referral/${shortenedUrl
-                      .split("/")
-                      .pop()}`} className="text-black underline hover:text-cyan-800 flex items-center gap-1">
-                    <Share2 className="h-4 w-4" color="black" /> Create Referral Links
-                  </Link>
-                </div>
+                 
+                  <Link 
+  href={`/referral/${shortenedUrl.split("/").pop()}`} 
+  className="text-black underline hover:text-cyan-800 flex items-center gap-1"
+ 
+>
+  <Share2 className="h-4 w-4" color="black" /> Allow Referrals
+</Link>
+                </div>}
+                
 
                 <div className="mt-4">
                   <button className="bg-black hover:bg-white text-white hover:text-black rock-salt-regular font-medium py-2 px-4 rounded w-full" onClick={() => {
@@ -643,7 +734,7 @@ export default function Home() {
               Create free Account
             </button>
 
-            <h3 className="text-xl font-bold mb-4">
+            {/* <h3 className="text-xl font-bold mb-4">
               ShortURL plans include:
             </h3>
 
@@ -664,9 +755,14 @@ export default function Home() {
                 <Share2 className="h-5 w-5 text-cyan-300" />
                 <span>Link Management Features</span>
               </li>
-            </ul>
+            </ul> */}
           </div>
         </div>
       </div>
+        <ReferralAuthModal 
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+       
+      />
     </div>;
 }

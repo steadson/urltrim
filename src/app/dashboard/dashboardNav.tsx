@@ -3,8 +3,8 @@ import { useRouter as useRouter2 } from "next/router";
 import { ChevronDown, User, LogOut, Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/app/context/authContext";
-import MyURLs from "./myurls/myurls";
-
+import { MyURLs} from "@/app/dashboard/myurls/myurls";
+import {Referrals} from "@/app/dashboard/referrals/referrals"
 export default function DashboardNav({ isPanelOpen, closePanel, openPanel }: { isPanelOpen: boolean; closePanel: () => void; openPanel: (path: string, content: React.ReactNode) => void }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const router = useRouter();
@@ -67,16 +67,16 @@ export default function DashboardNav({ isPanelOpen, closePanel, openPanel }: { i
               My URLs
             </button>
            
-           <button onClick={() => handlePanelLink("myurls", <MyURLs/>)} className={`px-3 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold ${
-              pathname === "/dashboard/myurls/myurls" ? "text-green-400" : ""
+           <button onClick={() => handlePanelLink("referrals", <Referrals/>)} className={`px-3 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold ${
+              pathname === "/dashboard/referrals/referrals" ? "text-green-400" : ""
             }`}>
-              Blog
+              Refferals
             </button>
             <div className="relative group">
              <button onClick={() => handlePanelLink("myurls", <MyURLs/>)} className={`px-3 py-1 cursor-pointer rounded hover:bg-white hover:text-black  transition doto font-bold ${
               pathname === "/dashboard/myurls/myurls" ? "text-green-400" : ""
             }`}>
-                Plan
+                Blog
               </button>
             </div>
           </div>
@@ -123,20 +123,20 @@ export default function DashboardNav({ isPanelOpen, closePanel, openPanel }: { i
               My Urls
             </button>
             <button
-            onClick={() => handlePanelLink("myurls", <MyURLs/>)}
+            onClick={() => handlePanelLink("referrals", <Referrals/>)}
               className={`text-left py-2 border-b border-gray-700 doto font-bold ${
-                pathname === "/dashboard/blog" ? "text-green-400" : ""
+                pathname === "/dashboard/referrals" ? "text-green-400" : ""
               }`}
             >
-              Blog
+              Referrals
             </button>
             <button
               onClick={() => handlePanelLink("myurls", <MyURLs/>)}
               className={`text-left py-2 border-b border-gray-700 doto font-bold ${
-                pathname === "/dashboard/Plans" ? "text-green-400" : ""
+                pathname === "/dashboard/Blog" ? "text-green-400" : ""
               }`}
             >
-              Plans
+              Blog
             </button>
            
 

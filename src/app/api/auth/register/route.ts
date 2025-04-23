@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     });
     await user.save();
     // Generate JWT token
-    const token = await generateToken(user._id);
+    const token = await generateToken(user._id.toString());
 
     // Create response with user data
     const response = NextResponse.json(
